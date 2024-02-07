@@ -114,7 +114,7 @@ class Session:
 
                 self.recv_task = self.loop.create_task(self.recv_worker())
 
-                await self.send(raw.functions.Ping(ping_id=0), timeout=self.START_TIMEOUT)
+                # await self.send(raw.functions.Ping(ping_id=0), timeout=self.START_TIMEOUT)
 
                 if not self.is_cdn:
                     await self.send(
@@ -126,8 +126,8 @@ class Session:
                                 device_model=self.client.device_model,
                                 system_version=self.client.system_version,
                                 system_lang_code=self.client.lang_code,
+                                lang_pack=self.client.lang_pack,
                                 lang_code=self.client.lang_code,
-                                lang_pack="",
                                 query=raw.functions.help.GetConfig(),
                             )
                         ),
@@ -285,6 +285,9 @@ class Session:
                         ping_id=0, disconnect_delay=self.WAIT_TIMEOUT + 10
                     ), False
                 )
+            except OSError:
+                self.loop.create_task(self.restart())
+                break
             except (OSError, RPCError):
                 pass
 
@@ -299,6 +302,12 @@ class Session:
             if packet is None or len(packet) == 4:
                 if packet:
                     error_code = -Int.read(BytesIO(packet))
+
+                    if error_code == 404:
+                        raise Exception(
+                            "Auth key not found in the system. You must delete your session file"
+                            "and log in again with your phone number or bot token"
+                        )
 
                     log.warning(
                         "Server sent transport error: %s (%s)",
